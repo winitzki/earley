@@ -1,17 +1,20 @@
 package io.chymyst.earley
 
+import io.chymyst.earley.typeclasses.Monoid
 import io.chymyst.earley.typeclasses.Monoid.MonoidSyntax
-import io.chymyst.earley.typeclasses.{Applicative, Monoid}
 import sourcecode.Name
-
 
 //* GraphNode is a Rule, a NodeLiteral, or a NodeOp. Other traits may be extended.
 sealed trait GraphNode extends GraphFold
 
 final case class Rule(name: String, node: () => GraphNode) extends GraphNode:
-  def reduce[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(node(), f, Set(), Monoid[T].empty)._1
+  override def toString: String = s"Rule($name)"
+  def reduce[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(this, f, Set(), Monoid[T].empty)._1
+
   def rulesUsed: Set[Rule] = SymGraph.rulesUsed(this)
+
   def literalsUsed: Set[NodeLiteral] = SymGraph.literalsUsed(this)
+
   def opsUsed: Set[NodeOp] = SymGraph.opsUsed(this)
 
 trait NodeLiteral extends GraphNode:
@@ -27,17 +30,17 @@ object SymGraph:
 
   def rulesUsed(start: Rule): Set[Rule] = start.reduce[Set[Rule]] {
     case rule: Rule => Set(rule)
-    case _ => Set()
+    case _          => Set()
   }
 
   def literalsUsed(start: Rule): Set[NodeLiteral] = start.reduce[Set[NodeLiteral]] {
     case literal: NodeLiteral => Set(literal)
-    case _ => Set()
+    case _                    => Set()
   }
 
   def opsUsed(start: Rule): Set[NodeOp] = start.reduce[Set[NodeOp]] {
     case op: NodeOp => Set(op)
-    case _ => Set()
+    case _          => Set()
   }
 
   private type S = Set[Rule] => Set[Rule]
@@ -60,17 +63,16 @@ object SymGraph:
       (newT1 ++ newT2, newS2)
     }
 
-
-  inline private val useName = true  // Later try setting this to `false`.
+  inline private val useName = true // Later try setting this to `false`.
 
   inline private def contains(visited: Set[Rule], rule: Rule): Boolean =
     inline if useName then visited.map(_.name) contains rule.name else visited contains rule
 
   private[earley] def trackVisited[T: Monoid](start: GraphNode, f: GraphNode => T, visited: Set[Rule], resultSoFar: T): (T, Set[Rule]) = start match {
-    case rule: Rule =>
+    case rule: Rule           =>
       if contains(visited, rule) then (resultSoFar, visited) else trackVisited(rule.node(), f, visited + rule, resultSoFar ++ f(rule))
     case literal: NodeLiteral => (resultSoFar ++ literal.reduce(f), visited)
-    case op: NodeOp =>
+    case op: NodeOp           =>
       val resultFromOp: ST[T] = op.reduce[ST[T]] { node =>
         val foldingOverOp: ST[T] = { previousVisited =>
           trackVisited(node, f, previousVisited, resultSoFar ++ f(node))
@@ -79,4 +81,3 @@ object SymGraph:
       }
       resultFromOp(visited)
   }
- 

@@ -89,7 +89,7 @@ object Monoid {
 
     override def combine(a: Set[T], b: Set[T]): Set[T] = a ++ b
   }
-  
+
   implicit def monoidSeq[A]: Monoid[Seq[A]] = new Monoid[Seq[A]] {
     override def empty: Seq[A] = Seq()
 

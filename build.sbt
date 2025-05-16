@@ -83,7 +83,7 @@ lazy val earley_core = (project in file("earley-core"))
         case Some((2, _)) => Seq(scala_reflect(scalaVersion.value), kindProjectorPlugin)
         case Some((3, _)) => Seq.empty // No need for scala-reflect with Scala 3.
       }),
-    libraryDependencies ++= Seq(munitTest, assertVerboseTest, enumeratum,  sourcecode, os_lib % Test),
+    libraryDependencies ++= Seq(munitTest, assertVerboseTest, enumeratum, sourcecode, os_lib % Test),
   ).dependsOn(earley_testutils % "test->compile", earley_typeclasses, earley_macros)
 
 lazy val earley_testutils = (project in file("earley-testutils"))
