@@ -9,6 +9,7 @@ sealed trait GraphNode extends GraphFold
 
 final case class Rule(name: String, node: () => GraphNode) extends GraphNode:
   override def toString: String = s"Rule($name)"
+
   def reduce[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(this, f, Set(), Monoid[T].empty)._1
 
   def rulesUsed: Set[Rule] = SymGraph.rulesUsed(this)
@@ -68,16 +69,19 @@ object SymGraph:
   inline private def contains(visited: Set[Rule], rule: Rule): Boolean =
     inline if useName then visited.map(_.name) contains rule.name else visited contains rule
 
-  private[earley] def trackVisited[T: Monoid](start: GraphNode, f: GraphNode => T, visited: Set[Rule], resultSoFar: T): (T, Set[Rule]) = start match {
-    case rule: Rule           =>
-      if contains(visited, rule) then (resultSoFar, visited) else trackVisited(rule.node(), f, visited + rule, resultSoFar ++ f(rule))
-    case literal: NodeLiteral => (resultSoFar ++ literal.reduce(f), visited)
-    case op: NodeOp           =>
-      val resultFromOp: ST[T] = op.reduce[ST[T]] { node =>
-        val foldingOverOp: ST[T] = { previousVisited =>
-          trackVisited(node, f, previousVisited, resultSoFar ++ f(node))
+  private[earley] def trackVisited[T: Monoid](start: GraphNode, f: GraphNode => T, visited: Set[Rule], resultSoFar: T): (T, Set[Rule]) = {
+    start match {
+      case rule: Rule           =>
+        if contains(visited, rule) then (resultSoFar, visited) else trackVisited(rule.node(), f, visited + rule, resultSoFar ++ f(rule))
+      case literal: NodeLiteral => (resultSoFar ++ literal.reduce(f), visited)
+      case op: NodeOp           =>
+        val resultFromOp: ST[T]     = op.reduce[ST[T]] { node =>
+          val foldingOverOp: ST[T] = { previousVisited =>
+            trackVisited(node, f, previousVisited, f(node))
+          }
+          foldingOverOp
         }
-        foldingOverOp
-      }
-      resultFromOp(visited)
+        val (newResult, newVisited) = resultFromOp(visited)
+        (resultSoFar ++ f(op) ++ newResult, newVisited)
+    }
   }
