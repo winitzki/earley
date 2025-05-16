@@ -11,10 +11,15 @@ object Fixtures1:
   final case class And(l: GraphNode, r: GraphNode) extends NodeOp:
     override def reduce[T: Monoid](f: GraphNode => T): T = f(l) ++ f(r)
 
+    override def toString: String = s"$l $r"
+
   final case class Or(l: GraphNode, r: GraphNode) extends NodeOp:
     override def reduce[T: Monoid](f: GraphNode => T): T = f(l) ++ f(r)
 
-  final case class LitStr(str: String) extends NodeLiteral
+    override def toString: String = s"$l | $r"
+
+  final case class LitStr(str: String) extends NodeLiteral:
+    override def toString: String = s"'$str'"
 
   extension (n: GraphNode)
     def &(other: GraphNode): And = And(n, other)
@@ -37,9 +42,9 @@ class SymGraphTest extends FunSuite:
     def e: Rule = c
 
     val a_ops = a.opsUsed.map(_.toString)
-    expect(a_ops == Set("And(LitStr(x),Rule(b))", "Or(And(LitStr(x),Rule(b)),Rule(c))", "Or(LitStr(y),Rule(c))"))
+    expect(a_ops == Set("'x' b", "'x' b | c", "'y' | c"))
     val b_ops = b.opsUsed.map(_.toString)
-    expect(b_ops == Set("Or(LitStr(y),Rule(c))"))
+    expect(b_ops == Set("'y' | c"))
     val c_ops = c.opsUsed.map(_.toString)
     expect(c_ops == Set())
 
@@ -49,22 +54,24 @@ class SymGraphTest extends FunSuite:
     expect(d.rulesUsed.map(_.name) == Set("c", "d"))
     expect(e.rulesUsed.map(_.name) == Set("c"))
 
-    expect(a.literalsUsed.map(_.toString) == Set("LitStr(x)", "LitStr(y)", "LitStr(z)"))
-    expect(b.literalsUsed.map(_.toString) == Set("LitStr(y)", "LitStr(z)"))
-    expect(c.literalsUsed.map(_.toString) == Set("LitStr(z)"))
-    expect(d.literalsUsed.map(_.toString) == Set("LitStr(z)"))
+    expect(a.literalsUsed.map(_.toString) == Set("'x'", "'y'", "'z'"))
+    expect(b.literalsUsed.map(_.toString) == Set("'y'", "'z'"))
+    expect(c.literalsUsed.map(_.toString) == Set("'z'"))
+    expect(d.literalsUsed.map(_.toString) == Set("'z'"))
 
-    expect(a.node().toString == "Or(And(LitStr(x),Rule(b)),Rule(c))")
-    expect(b.node().toString == "Or(LitStr(y),Rule(c))")
+    expect(a.node().toString == "'x' b | c")
+    expect(b.node().toString == "'y' | c")
 
   }
 
   test("define some rules with cyclic dependencies") {
     def a: Rule = LitStr("x") & b | c
 
-    def b: Rule = LitStr("y") & a | d
+    def b: Rule = LitStr("y") | a | d
 
-    def c: Rule = LitStr("z") & d | a
+    def c: Rule = LitStr("z") & d & c & a
 
-    def d: Rule = LitStr("w") & c | b
+    def d: Rule = LitStr("u") & d | LitStr("v")
+
+    expect(a.rulesUsed.map(_.name) == Set("a", "b", "c", "d"))
   }

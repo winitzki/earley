@@ -8,7 +8,9 @@ import sourcecode.Name
 sealed trait GraphNode extends GraphFold
 
 final case class Rule(name: String, node: () => GraphNode) extends GraphNode:
-  override def toString: String = s"Rule($name)"
+  override def toString: String = s"$name"
+
+  def print: String = s"$name ::== ${node()}"
 
   def reduce[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(this, f, Set(), Monoid[T].empty)._1
 
@@ -31,17 +33,17 @@ object SymGraph:
 
   def rulesUsed(start: Rule): Set[Rule] = start.reduce[Set[Rule]] {
     case rule: Rule => Set(rule)
-    case _          => Set()
+    case _ => Set()
   }
 
   def literalsUsed(start: Rule): Set[NodeLiteral] = start.reduce[Set[NodeLiteral]] {
     case literal: NodeLiteral => Set(literal)
-    case _                    => Set()
+    case _ => Set()
   }
 
   def opsUsed(start: Rule): Set[NodeOp] = start.reduce[Set[NodeOp]] {
     case op: NodeOp => Set(op)
-    case _          => Set()
+    case _ => Set()
   }
 
   private type S = Set[Rule] => Set[Rule]
@@ -71,11 +73,11 @@ object SymGraph:
 
   private[earley] def trackVisited[T: Monoid](start: GraphNode, f: GraphNode => T, visited: Set[Rule], resultSoFar: T): (T, Set[Rule]) = {
     start match {
-      case rule: Rule           =>
+      case rule: Rule =>
         if contains(visited, rule) then (resultSoFar, visited) else trackVisited(rule.node(), f, visited + rule, resultSoFar ++ f(rule))
       case literal: NodeLiteral => (resultSoFar ++ literal.reduce(f), visited)
-      case op: NodeOp           =>
-        val resultFromOp: ST[T]     = op.reduce[ST[T]] { node =>
+      case op: NodeOp =>
+        val resultFromOp: ST[T] = op.reduce[ST[T]] { node =>
           val foldingOverOp: ST[T] = { previousVisited =>
             trackVisited(node, f, previousVisited, f(node))
           }
