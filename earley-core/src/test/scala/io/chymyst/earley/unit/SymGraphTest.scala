@@ -74,4 +74,19 @@ class SymGraphTest extends FunSuite:
     def d: Rule = LitStr("u") & d | LitStr("v")
 
     expect(a.rulesUsed.map(_.name) == Set("a", "b", "c", "d"))
+    expect(b.rulesUsed.map(_.name) == Set("a", "b", "c", "d"))
+    expect(c.rulesUsed.map(_.name) == Set("a", "b", "c", "d"))
+    expect(d.rulesUsed.map(_.name) == Set("d"))
+
+    val opsUsed = Set("'x' b | c", "'x' b", "'y' | a | d", "'y' | a", "'z' d", "'z' d c", "'z' d c a", "'u' d", "'u' d | 'v'")
+    expect(a.opsUsed.map(_.toString) == opsUsed)
+    expect(b.opsUsed.map(_.toString) == opsUsed)
+    expect(c.opsUsed.map(_.toString) == opsUsed)
+    expect(d.opsUsed.map(_.toString) == Set("'u' d", "'u' d | 'v'"))
+
+    val litUsed = Set("'x'", "'y'", "'z'", "'u'", "'v'")
+    expect(a.literalsUsed.map(_.toString) == litUsed)
+    expect(b.literalsUsed.map(_.toString) == litUsed)
+    expect(c.literalsUsed.map(_.toString) == litUsed)
+    expect(d.literalsUsed.map(_.toString) == Set("'u'", "'v'"))
   }
