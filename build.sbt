@@ -69,7 +69,7 @@ lazy val earley_core = (project in file("earley-core"))
     },
     ThisBuild / scalacOptions ++= {
       CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((3, _))       => Seq("-Ykind-projector") // Seq("-Ykind-projector:underscores")
+        case Some((3, _))       => Seq("-Xkind-projector") // Seq("-Xkind-projector:underscores")
         case Some((2, 12 | 13)) => Seq()                   // Seq("-Xsource:3", "-P:kind-projector:underscore-placeholders")
       }
     },
@@ -83,7 +83,7 @@ lazy val earley_core = (project in file("earley-core"))
         case Some((2, _)) => Seq(scala_reflect(scalaVersion.value), kindProjectorPlugin)
         case Some((3, _)) => Seq.empty // No need for scala-reflect with Scala 3.
       }),
-    libraryDependencies ++= Seq(munitTest, assertVerboseTest, enumeratum, os_lib % Test),
+    libraryDependencies ++= Seq(munitTest, assertVerboseTest, enumeratum,  sourcecode, os_lib % Test),
   ).dependsOn(earley_testutils % "test->compile", earley_typeclasses, earley_macros)
 
 lazy val earley_testutils = (project in file("earley-testutils"))
