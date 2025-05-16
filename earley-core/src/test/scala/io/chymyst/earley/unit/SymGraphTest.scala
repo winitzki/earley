@@ -41,27 +41,31 @@ class SymGraphTest extends FunSuite:
 
     def e: Rule = c
 
-    val a_ops = a.opsUsed.map(_.toString)
+    val a_ops = a.opsUsedRec.map(_.toString)
     expect(a_ops == Set("'x' b", "'x' b | c", "'y' | c"))
-    val b_ops = b.opsUsed.map(_.toString)
+    val b_ops = b.opsUsedRec.map(_.toString)
     expect(b_ops == Set("'y' | c"))
-    val c_ops = c.opsUsed.map(_.toString)
+    val c_ops = c.opsUsedRec.map(_.toString)
     expect(c_ops == Set())
 
-    expect(a.rulesUsed.map(_.name) == Set("a", "b", "c"))
-    expect(b.rulesUsed.map(_.name) == Set("b", "c"))
-    expect(c.rulesUsed.map(_.name) == Set("c"))
-    expect(d.rulesUsed.map(_.name) == Set("c", "d"))
-    expect(e.rulesUsed.map(_.name) == Set("c"))
+    expect(a.rulesUsedRec.map(_.name) == Set("a", "b", "c"))
+    expect(b.rulesUsedRec.map(_.name) == Set("b", "c"))
+    expect(c.rulesUsedRec.map(_.name) == Set("c"))
+    expect(d.rulesUsedRec.map(_.name) == Set("c", "d"))
+    expect(e.rulesUsedRec.map(_.name) == Set("c"))
 
-    expect(a.literalsUsed.map(_.toString) == Set("'x'", "'y'", "'z'"))
-    expect(b.literalsUsed.map(_.toString) == Set("'y'", "'z'"))
-    expect(c.literalsUsed.map(_.toString) == Set("'z'"))
-    expect(d.literalsUsed.map(_.toString) == Set("'z'"))
+    expect(a.literalsUsedRec.map(_.toString) == Set("'x'", "'y'", "'z'"))
+    expect(b.literalsUsedRec.map(_.toString) == Set("'y'", "'z'"))
+    expect(c.literalsUsedRec.map(_.toString) == Set("'z'"))
+    expect(d.literalsUsedRec.map(_.toString) == Set("'z'"))
 
     expect(a.node().toString == "'x' b | c")
     expect(b.node().toString == "'y' | c")
 
+    expect(a.rulesUsedAtOneLevel.map(_.toString) == Set("b", "c"))
+    expect(b.rulesUsedAtOneLevel.map(_.toString) == Set("c"))
+    expect(c.rulesUsedAtOneLevel.map(_.toString) == Set())
+    expect(d.rulesUsedAtOneLevel.map(_.toString) == Set("c"))
   }
 
   test("define some rules with cyclic dependencies") {
@@ -73,20 +77,25 @@ class SymGraphTest extends FunSuite:
 
     def d: Rule = LitStr("u") & d | LitStr("v")
 
-    expect(a.rulesUsed.map(_.name) == Set("a", "b", "c", "d"))
-    expect(b.rulesUsed.map(_.name) == Set("a", "b", "c", "d"))
-    expect(c.rulesUsed.map(_.name) == Set("a", "b", "c", "d"))
-    expect(d.rulesUsed.map(_.name) == Set("d"))
+    expect(a.rulesUsedRec.map(_.name) == Set("a", "b", "c", "d"))
+    expect(b.rulesUsedRec.map(_.name) == Set("a", "b", "c", "d"))
+    expect(c.rulesUsedRec.map(_.name) == Set("a", "b", "c", "d"))
+    expect(d.rulesUsedRec.map(_.name) == Set("d"))
 
     val opsUsed = Set("'x' b | c", "'x' b", "'y' | a | d", "'y' | a", "'z' d", "'z' d c", "'z' d c a", "'u' d", "'u' d | 'v'")
-    expect(a.opsUsed.map(_.toString) == opsUsed)
-    expect(b.opsUsed.map(_.toString) == opsUsed)
-    expect(c.opsUsed.map(_.toString) == opsUsed)
-    expect(d.opsUsed.map(_.toString) == Set("'u' d", "'u' d | 'v'"))
+    expect(a.opsUsedRec.map(_.toString) == opsUsed)
+    expect(b.opsUsedRec.map(_.toString) == opsUsed)
+    expect(c.opsUsedRec.map(_.toString) == opsUsed)
+    expect(d.opsUsedRec.map(_.toString) == Set("'u' d", "'u' d | 'v'"))
 
     val litUsed = Set("'x'", "'y'", "'z'", "'u'", "'v'")
-    expect(a.literalsUsed.map(_.toString) == litUsed)
-    expect(b.literalsUsed.map(_.toString) == litUsed)
-    expect(c.literalsUsed.map(_.toString) == litUsed)
-    expect(d.literalsUsed.map(_.toString) == Set("'u'", "'v'"))
+    expect(a.literalsUsedRec.map(_.toString) == litUsed)
+    expect(b.literalsUsedRec.map(_.toString) == litUsed)
+    expect(c.literalsUsedRec.map(_.toString) == litUsed)
+    expect(d.literalsUsedRec.map(_.toString) == Set("'u'", "'v'"))
+
+    expect(a.rulesUsedAtOneLevel.map(_.toString) == Set("b", "c"))
+    expect(b.rulesUsedAtOneLevel.map(_.toString) == Set("a", "d"))
+    expect(c.rulesUsedAtOneLevel.map(_.toString) == Set("d", "c", "a"))
+    expect(d.rulesUsedAtOneLevel.map(_.toString) == Set("d"))
   }

@@ -12,13 +12,22 @@ final case class Rule(name: String, node: () => GraphNode) extends GraphNode:
 
   def print: String = s"$name ::== ${node()}"
 
-  def reduce[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(this, f, Set(), Monoid[T].empty)._1
+  def reduce[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(this, f, Set(), Monoid[T].empty, descend = true)._1
 
-  def rulesUsed: Set[Rule] = SymGraph.rulesUsed(this)
+  def reduceSkipThis[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(node(), f, Set(), Monoid[T].empty, descend = true)._1
 
-  def literalsUsed: Set[NodeLiteral] = SymGraph.literalsUsed(this)
+  def reduceOneLevel[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(node(), f, Set(), Monoid[T].empty, descend = false)._1
 
-  def opsUsed: Set[NodeOp] = SymGraph.opsUsed(this)
+  def rulesUsedRec: Set[Rule] = SymGraph.rulesUsed(this)
+
+  def rulesUsedAtOneLevel: Set[Rule] = reduceOneLevel[Set[Rule]] {
+    case rule: Rule => Set(rule)
+    case _          => Set()
+  }
+
+  def literalsUsedRec: Set[NodeLiteral] = SymGraph.literalsUsed(this)
+
+  def opsUsedRec: Set[NodeOp] = SymGraph.opsUsed(this)
 
 trait NodeLiteral extends GraphNode:
   def reduce[T: Monoid](f: GraphNode => T): T = f(this)
@@ -71,15 +80,19 @@ object SymGraph:
   inline private def contains(visited: Set[Rule], rule: Rule): Boolean =
     inline if useName then visited.map(_.name) contains rule.name else visited contains rule
 
-  private[earley] def trackVisited[T: Monoid](start: GraphNode, f: GraphNode => T, visited: Set[Rule], resultSoFar: T): (T, Set[Rule]) = {
+  private[earley] def trackVisited[T: Monoid](start: GraphNode, f: GraphNode => T, visited: Set[Rule], resultSoFar: T, descend: Boolean): (T, Set[Rule]) = {
     start match {
       case rule: Rule           =>
-        if contains(visited, rule) then (resultSoFar, visited) else trackVisited(rule.node(), f, visited + rule, resultSoFar ++ f(rule))
+        if !descend
+        then (resultSoFar ++ f(rule), visited)
+        else if contains(visited, rule)
+        then (resultSoFar, visited)
+        else trackVisited(rule.node(), f, visited + rule, resultSoFar ++ f(rule), descend)
       case literal: NodeLiteral => (resultSoFar ++ literal.reduce(f), visited)
       case op: NodeOp           =>
         val resultFromOp: ST[T]     = op.reduce[ST[T]] { node =>
           val foldingOverOp: ST[T] = { previousVisited =>
-            trackVisited(node, f, previousVisited, f(node))
+            trackVisited(node, f, previousVisited, f(node), descend)
           }
           foldingOverOp
         }
