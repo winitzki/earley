@@ -5,6 +5,8 @@ import io.chymyst.earley.typeclasses.Monoid.MonoidSyntax
 import sourcecode.Name
 
 //* GraphNode is a Rule, a NodeLiteral, or a NodeOp. Other traits may be extended.
+
+// TODO: Refactor so that GraphFold is not used in OO inheritance but as a standalone typeclass.
 sealed trait GraphNode extends GraphFold
 
 final case class Rule(name: String, node: () => GraphNode) extends GraphNode:
