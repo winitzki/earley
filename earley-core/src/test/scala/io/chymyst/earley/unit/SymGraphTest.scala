@@ -4,21 +4,21 @@ import com.eed3si9n.expecty.Expecty.expect
 import io.chymyst.earley.SymGraph.rule
 import io.chymyst.earley.typeclasses.Monoid
 import io.chymyst.earley.typeclasses.Monoid.MonoidSyntax
-import io.chymyst.earley.{GraphNode, NodeLiteral, NodeOp, Rule}
+import io.chymyst.earley.{GraphNode, TerminalNode, OpNode, Rule}
 import munit.FunSuite
 
 object Fixtures1:
-  final case class And(l: GraphNode, r: GraphNode) extends NodeOp:
+  final case class And(l: GraphNode, r: GraphNode) extends OpNode:
     override def reduce[T: Monoid](f: GraphNode => T): T = f(l) ++ f(r)
 
     override def toString: String = s"$l $r"
 
-  final case class Or(l: GraphNode, r: GraphNode) extends NodeOp:
+  final case class Or(l: GraphNode, r: GraphNode) extends OpNode:
     override def reduce[T: Monoid](f: GraphNode => T): T = f(l) ++ f(r)
 
     override def toString: String = s"$l | $r"
 
-  final case class LitStr(str: String) extends NodeLiteral:
+  final case class LitStr(str: String) extends TerminalNode:
     override def toString: String = s"'$str'"
 
   extension (n: GraphNode)
@@ -31,15 +31,15 @@ class SymGraphTest extends FunSuite:
 
   test("define some rules without cyclic dependencies") {
 
-    def a: Rule = LitStr("x") & b | c
+    lazy val a: Rule = rule(LitStr("x") & b | c)
 
-    def b: Rule = LitStr("y") | e
+    lazy val b: Rule = rule(LitStr("y") | e)
 
-    def c: Rule = LitStr("z")
+    lazy val c: Rule = rule(LitStr("z"))
 
-    def d: Rule = rule(c)
+    lazy val d: Rule = rule(c)
 
-    def e: Rule = c
+    lazy val e: Rule = c
 
     val a_ops = a.opsUsedRec.map(_.toString)
     expect(a_ops == Set("'x' b", "'x' b | c", "'y' | c"))
@@ -54,28 +54,21 @@ class SymGraphTest extends FunSuite:
     expect(d.rulesUsedRec.map(_.name) == Set("c", "d"))
     expect(e.rulesUsedRec.map(_.name) == Set("c"))
 
-    expect(a.literalsUsedRec.map(_.toString) == Set("'x'", "'y'", "'z'"))
-    expect(b.literalsUsedRec.map(_.toString) == Set("'y'", "'z'"))
-    expect(c.literalsUsedRec.map(_.toString) == Set("'z'"))
-    expect(d.literalsUsedRec.map(_.toString) == Set("'z'"))
+    expect(a.terminalsUsedRec.map(_.toString) == Set("'x'", "'y'", "'z'"))
+    expect(b.terminalsUsedRec.map(_.toString) == Set("'y'", "'z'"))
+    expect(c.terminalsUsedRec.map(_.toString) == Set("'z'"))
+    expect(d.terminalsUsedRec.map(_.toString) == Set("'z'"))
 
     expect(a.node().toString == "'x' b | c")
     expect(b.node().toString == "'y' | c")
 
-    expect(a.rulesUsedAtOneLevel.map(_.toString) == Set("b", "c"))
-    expect(b.rulesUsedAtOneLevel.map(_.toString) == Set("c"))
-    expect(c.rulesUsedAtOneLevel.map(_.toString) == Set())
-    expect(d.rulesUsedAtOneLevel.map(_.toString) == Set("c"))
   }
 
   test("define some rules with cyclic dependencies") {
-    def a: Rule = LitStr("x") & b | c
-
-    def b: Rule = LitStr("y") | a | d
-
-    def c: Rule = LitStr("z") & d & c & a
-
-    def d: Rule = LitStr("u") & d | LitStr("v")
+    lazy val a: Rule = rule(LitStr("x") & b | c)
+    lazy val b: Rule = rule(LitStr("y") | a | d)
+    lazy val c: Rule = rule(LitStr("z") & d & c & a)
+    lazy val d: Rule = rule(LitStr("u") & d | LitStr("v"))
 
     expect(a.rulesUsedRec.map(_.name) == Set("a", "b", "c", "d"))
     expect(b.rulesUsedRec.map(_.name) == Set("a", "b", "c", "d"))
@@ -89,13 +82,9 @@ class SymGraphTest extends FunSuite:
     expect(d.opsUsedRec.map(_.toString) == Set("'u' d", "'u' d | 'v'"))
 
     val litUsed = Set("'x'", "'y'", "'z'", "'u'", "'v'")
-    expect(a.literalsUsedRec.map(_.toString) == litUsed)
-    expect(b.literalsUsedRec.map(_.toString) == litUsed)
-    expect(c.literalsUsedRec.map(_.toString) == litUsed)
-    expect(d.literalsUsedRec.map(_.toString) == Set("'u'", "'v'"))
+    expect(a.terminalsUsedRec.map(_.toString) == litUsed)
+    expect(b.terminalsUsedRec.map(_.toString) == litUsed)
+    expect(c.terminalsUsedRec.map(_.toString) == litUsed)
+    expect(d.terminalsUsedRec.map(_.toString) == Set("'u'", "'v'"))
 
-    expect(a.rulesUsedAtOneLevel.map(_.toString) == Set("b", "c"))
-    expect(b.rulesUsedAtOneLevel.map(_.toString) == Set("a", "d"))
-    expect(c.rulesUsedAtOneLevel.map(_.toString) == Set("d", "c", "a"))
-    expect(d.rulesUsedAtOneLevel.map(_.toString) == Set("d"))
   }

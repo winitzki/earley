@@ -4,56 +4,45 @@ import io.chymyst.earley.typeclasses.Monoid
 import io.chymyst.earley.typeclasses.Monoid.MonoidSyntax
 import sourcecode.Name
 
-//* GraphNode is a Rule, a NodeLiteral, or a NodeOp. Other traits may be extended.
-
-// TODO: Refactor so that GraphFold is not used in OO inheritance but as a standalone typeclass.
-sealed trait GraphNode extends GraphFold
+// GraphNode is a Rule, a TerminalNode, or an OpNode. The traits `TerminalNode` and `OpNode` may be extended.
+sealed trait GraphNode:
+  def reduce[T: Monoid](f: GraphNode => T): T
 
 final case class Rule(name: String, node: () => GraphNode) extends GraphNode:
   override def toString: String = s"$name"
 
   def print: String = s"$name ::== ${node()}"
 
-  def reduce[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(this, f, Set(), Monoid[T].empty, descend = true)._1
+  def reduce[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(this, f, Set(), Monoid[T].empty)._1
 
-  def reduceSkipThis[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(node(), f, Set(), Monoid[T].empty, descend = true)._1
-
-  def reduceOneLevel[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(node(), f, Set(), Monoid[T].empty, descend = false)._1
+  def reduceSkipThis[T: Monoid](f: GraphNode => T): T = SymGraph.trackVisited(node(), f, Set(), Monoid[T].empty)._1
 
   def rulesUsedRec: Set[Rule] = SymGraph.rulesUsed(this)
 
-  def rulesUsedAtOneLevel: Set[Rule] = reduceOneLevel[Set[Rule]] {
-    case rule: Rule => Set(rule)
-    case _          => Set()
-  }
+  def terminalsUsedRec: Set[TerminalNode] = SymGraph.literalsUsed(this)
 
-  def literalsUsedRec: Set[NodeLiteral] = SymGraph.literalsUsed(this)
+  def opsUsedRec: Set[OpNode] = SymGraph.opsUsed(this)
 
-  def opsUsedRec: Set[NodeOp] = SymGraph.opsUsed(this)
-
-trait NodeLiteral extends GraphNode:
+trait TerminalNode extends GraphNode:
   def reduce[T: Monoid](f: GraphNode => T): T = f(this)
 
-trait NodeOp extends GraphNode
-
-trait GraphFold:
-  def reduce[T: Monoid](f: GraphNode => T): T
+trait OpNode extends GraphNode
 
 object SymGraph:
-  implicit def rule(x: => GraphNode)(using valName: Name): Rule = Rule(name = valName.value, node = () => x)
+  def rule(x: => GraphNode)(using valName: Name): Rule = Rule(name = valName.value, node = () => x)
 
   def rulesUsed(start: Rule): Set[Rule] = start.reduce[Set[Rule]] {
     case rule: Rule => Set(rule)
     case _          => Set()
   }
 
-  def literalsUsed(start: Rule): Set[NodeLiteral] = start.reduce[Set[NodeLiteral]] {
-    case literal: NodeLiteral => Set(literal)
-    case _                    => Set()
+  def literalsUsed(start: Rule): Set[TerminalNode] = start.reduce[Set[TerminalNode]] {
+    case literal: TerminalNode => Set(literal)
+    case _                     => Set()
   }
 
-  def opsUsed(start: Rule): Set[NodeOp] = start.reduce[Set[NodeOp]] {
-    case op: NodeOp => Set(op)
+  def opsUsed(start: Rule): Set[OpNode] = start.reduce[Set[OpNode]] {
+    case op: OpNode => Set(op)
     case _          => Set()
   }
 
@@ -67,7 +56,7 @@ object SymGraph:
 
   private type ST[T] = Set[Rule] => (T, Set[Rule])
 
-  // Writer monad transformer (using T) applied to the State monad (S).
+  // ST[T] is a monoid when T is one.
   private given [T: Monoid] => Monoid[ST[T]] = new Monoid[ST[T]]:
     override def empty: ST[T] = s => (Monoid[T].empty, s)
 
@@ -77,24 +66,22 @@ object SymGraph:
       (newT1 ++ newT2, newS2)
     }
 
-  inline private val useName = true // Later try setting this to `false`.
+  inline private val identifyRulesByNameOnly = true // Later try setting this to `false`.
 
   inline private def contains(visited: Set[Rule], rule: Rule): Boolean =
-    inline if useName then visited.map(_.name) contains rule.name else visited contains rule
+    inline if identifyRulesByNameOnly then visited.map(_.name) contains rule.name else visited contains rule
 
-  private[earley] def trackVisited[T: Monoid](start: GraphNode, f: GraphNode => T, visited: Set[Rule], resultSoFar: T, descend: Boolean): (T, Set[Rule]) = {
+  private[earley] def trackVisited[T: Monoid](start: GraphNode, f: GraphNode => T, visited: Set[Rule], resultSoFar: T): (T, Set[Rule]) = {
     start match {
-      case rule: Rule           =>
-        if !descend
-        then (resultSoFar ++ f(rule), visited)
-        else if contains(visited, rule)
+      case rule: Rule            =>
+        if contains(visited, rule)
         then (resultSoFar, visited)
-        else trackVisited(rule.node(), f, visited + rule, resultSoFar ++ f(rule), descend)
-      case literal: NodeLiteral => (resultSoFar ++ literal.reduce(f), visited)
-      case op: NodeOp           =>
+        else trackVisited(rule.node(), f, visited + rule, resultSoFar ++ f(rule))
+      case literal: TerminalNode => (resultSoFar ++ literal.reduce(f), visited)
+      case op: OpNode            =>
         val resultFromOp: ST[T]     = op.reduce[ST[T]] { node =>
           val foldingOverOp: ST[T] = { previousVisited =>
-            trackVisited(node, f, previousVisited, f(node), descend)
+            trackVisited(node, f, previousVisited, f(node))
           }
           foldingOverOp
         }
