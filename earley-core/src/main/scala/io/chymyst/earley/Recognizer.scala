@@ -7,6 +7,11 @@ object Recognizer {
     def symbolAtDot: AnySymbol = rule.symbolAtIndex(dotPosition)
     def advance: EarleyItem    = this.copy(dotPosition = this.dotPosition + 1)
     def isComplete: Boolean    = (rule.size == dotPosition)
+
+    override def toString: String = s"${rule.baseSymbol} → ${
+        val symbolsPrinted: Seq[String] = (0 until rule.size).map(i => rule.symbolAtIndex(i).toString)
+        (symbolsPrinted.take(dotPosition) ++ Seq("●") ++ symbolsPrinted.drop(dotPosition)).mkString(" ") + s" @$initialIndex"
+      }"
   }
 
   // Repeat until previousA stops changing:
@@ -22,20 +27,28 @@ object Recognizer {
     }
   }
 
-  def earleyRecognizerStep(grammar: SimpleGrammar, currentChar: Char, currentIndex: Int, previousChart: Array[Set[EarleyItem]]): Set[EarleyItem] = {
+  // Return: (completed, predicted).
+  def earleyRecognizerStep(
+    grammar: SimpleGrammar,
+    currentChar: Char,
+    currentIndex: Int,
+    previousChart: Vector[Set[EarleyItem]],
+  ): (Set[EarleyItem], Set[EarleyItem]) = {
     // Find items from the previous chart that match the current character.
     // Advance all those items and copy them to the new chart.
-    val itemsThatRecognizedThisChar: Set[EarleyItem] = previousChart.last.filter(_.symbolAtDot `matchesChar` currentChar).map(_.advance)
+    val itemsThatRecognizedThisChar: Set[EarleyItem] =
+      previousChart.lastOption.map(_.filter(_.symbolAtDot `matchesChar` currentChar).map(_.advance)).toSet.flatten
 
     // ## Completer
 
-    // Find those items that have been completed as a result of being advanced.
-    val (completedItems, activeItems)                                                        = itemsThatRecognizedThisChar.partition(_.isComplete)
+    // Find those items that have been completed as a result of being advanced past a terminal symbol, due to matching a single character.
+    val (completedItems, activeItems) = itemsThatRecognizedThisChar.partition(_.isComplete)
+
     // For each of the completed items, find the parent items, advance those items, and add them to the current sets.
     // Find those that have been completed and add to the "completed" set. Non-completed items need to be added to the "active" set.
     // Repeat this until the "completed" set becomes stable ("transitive closure").
     val getNewCompletedAndActiveItems: Set[EarleyItem] => (Set[EarleyItem], Set[EarleyItem]) =
-      _.flatMap(item => previousChart(item.initialIndex).filter(_.symbolAtDot `matchesSymbol` item.rule.baseSymbol)).partition(_.isComplete)
+      _.flatMap(item => previousChart(item.initialIndex).filter(_.symbolAtDot `matchesSymbol` item.rule.baseSymbol).map(_.advance)).partition(_.isComplete)
 
     val (newCompletedItems, newActiveItems) = transitiveClosure(Set(), activeItems, completedItems, getNewCompletedAndActiveItems)
 
@@ -55,12 +68,17 @@ object Recognizer {
     // The second set is always going to be empty here.
     val (newPredictedItems, _) = transitiveClosure(Set(), Set(), newActiveItems, getNewPredictedItems)
 
-    newPredictedItems
+    (newCompletedItems, newPredictedItems)
   }
 
-  def earleyRecognizer(grammar: SimpleGrammar, input: Array[Char]): Array[Set[EarleyItem]] =
-    input.indices.foldLeft(Array[Set[EarleyItem]]()) { (prev, i) =>
-      prev.appended(earleyRecognizerStep(grammar, currentChar = input(i), currentIndex = i, previousChart = prev))
+  // The result is a tuple (completed, predicted).
+  def earleyRecognizer(grammar: SimpleGrammar, input: Array[Char]): (Vector[Set[EarleyItem]], Vector[Set[EarleyItem]]) = {
+    val initialChart: Set[EarleyItem] = grammar.rulesForSymbol(grammar.startSymbol).map(rule => EarleyItem(rule, 0, 0))
+
+    input.indices.foldLeft((Vector(Set()), Vector(initialChart))) { case ((prevCompleted, prevPredicted), i) =>
+      val (newCompleted, newPredicted) = earleyRecognizerStep(grammar, currentChar = input(i), currentIndex = i, previousChart = prevPredicted)
+      (prevCompleted.appended(newCompleted), prevPredicted.appended(newPredicted))
     }
+  }
 
 }

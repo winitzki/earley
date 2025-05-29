@@ -6,17 +6,24 @@ import io.chymyst.earley.SymGraph.rule
 import com.eed3si9n.expecty.Expecty.expect
 
 object FixturesForSimpleGrammar:
-  lazy val grammar_figure_7_4 = {
+  
+  trait FixtureForSimpleGrammar:
+    def example_input: String
+    def start_symbol: Rule
+    final def char_input: Array[Char] = example_input.toCharArray 
+  
+  lazy val grammar_figure_7_4  = new FixtureForSimpleGrammar {
+
     import io.chymyst.earley.SimpleGrammarDef.*
 
-    lazy val S: Rule = rule('a' ~ S ~ 'b' || S ~ 'a' ~ 'b' || 'a' ~ 'a' ~ 'a')
+    lazy val S: Rule =rule('a' ~ S ~ 'b' || S ~ 'a' ~ 'b' || 'a' ~ 'a' ~ 'a')
+    
+    override def example_input: String = "aaaab"
 
-    val example_input = "aaaab".toCharArray
-
-    (S, example_input)
+    override def start_symbol: Rule = S
   }
 
-  lazy val grammar_figure_7_8 = {
+  lazy val grammar_figure_7_8 = new FixtureForSimpleGrammar{
     import io.chymyst.earley.SimpleGrammarDef.*
 
     lazy val S: Rule = rule(E)
@@ -27,15 +34,16 @@ object FixturesForSimpleGrammar:
 
     lazy val F: Rule = rule('a')
 
-    val example_input = "a-a+a".toCharArray
+    override def example_input: String = "a-a+a"
 
-    (S, example_input)
+    override def start_symbol: Rule = S 
+ 
   }
 
 class SimpleGrammarDefTest extends FunSuite {
 
   test("convert the grammar from Grune-Jacobs Figure 7.4") {
-    val (start_symbol, input) = FixturesForSimpleGrammar.grammar_figure_7_4
+    val start_symbol = FixturesForSimpleGrammar.grammar_figure_7_4.start_symbol
     expect(start_symbol.print == "S ::== 'a' S 'b' | S 'a' 'b' | 'a' 'a' 'a'")
     val grammar               = SimpleGrammarDef.toSimpleGrammar(start_symbol)
     expect(grammar.toString == """S ::== 'a' 'a' 'a'
@@ -44,7 +52,7 @@ class SimpleGrammarDefTest extends FunSuite {
   }
 
   test("convert the grammar from Grune-Jacobs Figure 7.8") {
-    val (start_symbol, input) = FixturesForSimpleGrammar.grammar_figure_7_8
+    val start_symbol = FixturesForSimpleGrammar.grammar_figure_7_8.start_symbol
     expect(start_symbol.print == "S ::== E")
     val grammar               = SimpleGrammarDef.toSimpleGrammar(start_symbol)
     expect(grammar.toString == """S ::== E
@@ -54,4 +62,5 @@ class SimpleGrammarDefTest extends FunSuite {
                                  |Q ::== '+'
                                  |Q ::== '-'""".stripMargin)
   }
+
 }
