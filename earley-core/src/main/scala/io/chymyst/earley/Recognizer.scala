@@ -3,14 +3,20 @@ package io.chymyst.earley
 import scala.annotation.tailrec
 
 object Recognizer {
+  private def formatCentered(providedWidth: Int)(s: String): String =
+    val contentWidth = s.length
+    val padding: Int = math.max(0, providedWidth - contentWidth + 1) / 2
+    " " * padding + s + " " * (providedWidth - padding - contentWidth)
+
+
   final case class EarleyItem(rule: RuleWithRHS, dotPosition: Int, initialIndex: Int) {
     def symbolAtDot: AnySymbol = rule.symbolAtIndex(dotPosition)
     def advance: EarleyItem    = this.copy(dotPosition = this.dotPosition + 1)
     def isComplete: Boolean    = (rule.size == dotPosition)
 
-    override def toString: String = s"${rule.baseSymbol} → ${
+    override def toString: String = s"${rule.baseSymbol}   → ${
         val symbolsPrinted: Seq[String] = (0 until rule.size).map(i => rule.symbolAtIndex(i).toString)
-        (symbolsPrinted.take(dotPosition) ++ Seq("●") ++ symbolsPrinted.drop(dotPosition)).mkString(" ") + s" @$initialIndex"
+        (symbolsPrinted.take(dotPosition) ++ Seq("●") ++ symbolsPrinted.drop(dotPosition)).map(formatCentered(5)).mkString(" ") + s"   @$initialIndex"
       }"
   }
 
@@ -26,6 +32,16 @@ object Recognizer {
       transitiveClosure(previousA ++ toAppendToA, previousB ++ newSetBDelta, newSetADelta, getNewToAppend)
     }
   }
+
+  /*
+  TO DO:
+
+  - Make the recognizer step more granular. Reuse parts that perform scanning.
+
+  - Make the initial chart correct without hacks. Use the granular parts from the previous refactoring.
+
+  - Use opaque types to distinguish predicted and completed item sets.
+   */
 
   // Return: (completed, predicted).
   def earleyRecognizerStep(
@@ -56,25 +72,26 @@ object Recognizer {
 
     // We have consumed the character at the current index. Now we will produce items for the next character's index.
 
-    // Find all non-terminal symbols at dot; find rules for them; insert new Earley items with those rules, at the next index.
-    val getNewPredictedItems: Set[EarleyItem] => (Set[EarleyItem], Set[EarleyItem]) = { predicted =>
-      val newPredicted = predicted
-        .map(_.symbolAtDot).collect { case symbol: NonTerminalSymbol => grammar.rulesForSymbol(symbol) }.flatten.map(rhs =>
-          EarleyItem(rhs, 0, currentIndex + 1)
-        )
-      (newPredicted, Set())
-    }
-
     // The second set is always going to be empty here.
-    val (newPredictedItems, _) = transitiveClosure(Set(), Set(), newActiveItems, getNewPredictedItems)
+    val (newPredictedItems, _) = transitiveClosure(Set(), Set(), newActiveItems, getNewPredictedItems(grammar, currentIndex))
 
     (newCompletedItems, newPredictedItems)
   }
 
+  // Find all non-terminal symbols at dot; find rules for them; insert new Earley items with those rules, at the next index.
+  private def getNewPredictedItems(grammar: SimpleGrammar, currentIndex: Int): Set[EarleyItem] => (Set[EarleyItem], Set[EarleyItem]) = { predicted =>
+    val newPredicted = predicted
+      .map(_.symbolAtDot).collect { case symbol: NonTerminalSymbol => grammar.rulesForSymbol(symbol) }.flatten.map(rhs =>
+        EarleyItem(rhs, 0, currentIndex + 1)
+      )
+    (newPredicted, Set())
+  }
+
   // The result is a tuple (completed, predicted).
   def earleyRecognizer(grammar: SimpleGrammar, input: Array[Char]): (Vector[Set[EarleyItem]], Vector[Set[EarleyItem]]) = {
-    val initialChart: Set[EarleyItem] = grammar.rulesForSymbol(grammar.startSymbol).map(rule => EarleyItem(rule, 0, 0))
-
+    val fakeInitialItems = Set(EarleyItem(RuleWithRHSAsVector(grammar.startSymbol, Vector(grammar.startSymbol)), 0, -1))
+    val initialChart: Set[EarleyItem] = transitiveClosure(Set(), Set(), fakeInitialItems, getNewPredictedItems(grammar, -1))._1
+      .filter(_.initialIndex >= 0)
     input.indices.foldLeft((Vector(Set()), Vector(initialChart))) { case ((prevCompleted, prevPredicted), i) =>
       val (newCompleted, newPredicted) = earleyRecognizerStep(grammar, currentChar = input(i), currentIndex = i, previousChart = prevPredicted)
       (prevCompleted.appended(newCompleted), prevPredicted.appended(newPredicted))

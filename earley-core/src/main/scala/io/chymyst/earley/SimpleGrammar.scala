@@ -31,7 +31,7 @@ trait RuleWithRHS:
 
 final case class RuleWithRHSAsVector(baseSymbol: NonTerminalSymbol, rhs: Vector[AnySymbol]) extends RuleWithRHS:
   def size: Int                            = rhs.length
-  def symbolAtIndex(index: Int): AnySymbol = rhs(index)
+  def symbolAtIndex(index: Int): AnySymbol = rhs(index) //rhs.lift(index).getOrElse(StartOfText) TODO remove this
 
   override def toString: String = s"$baseSymbol ::== ${rhs.mkString(" ")}"
 
@@ -43,6 +43,9 @@ trait AnySymbol:
   def matchesChar(c: Char): Boolean                = false
   def matchesSymbol(s: NonTerminalSymbol): Boolean = false
   override def toString: String                    = name
+
+//final case object StartOfText extends AnySymbol:  TODO remove this
+//  val name =  "|-"
 
 final case class TerminalSymbol(name: String, character: Char) extends AnySymbol:
   override def isTerminal: Boolean           = true
