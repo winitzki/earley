@@ -26,10 +26,11 @@ object Recognizer {
   // We are done if there is nothing new to append to previousA (and so we will assume that there is also nothing new to append to previousB).
   @tailrec
   def transitiveClosure[A, B](previousA: Set[A], previousB: Set[B], toAppendToA: Set[A], getNewToAppend: Set[A] => (Set[A], Set[B])): (Set[A], Set[B]) = {
-    if (toAppendToA -- previousA).isEmpty then (previousA, previousB)
+    val difference = toAppendToA -- previousA
+    if difference.isEmpty then (previousA, previousB)
     else {
-      val (newSetADelta, newSetBDelta) = getNewToAppend(toAppendToA)
-      transitiveClosure(previousA ++ toAppendToA, previousB ++ newSetBDelta, newSetADelta, getNewToAppend)
+      val (newSetADelta, newSetBDelta) = getNewToAppend(difference)
+      transitiveClosure(previousA ++ difference, previousB ++ newSetBDelta, newSetADelta, getNewToAppend)
     }
   }
 
