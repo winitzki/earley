@@ -87,7 +87,7 @@ class RecognizerTest extends FunSuite {
                                                    |""".stripMargin)
   }
 
-  test("recognize the sample from Grune-Jacobs Figure 7.8") {
+  test("reproduce the chart from Grune-Jacobs Figure 7.11") {
     expect(testGrammar(grammar_figure_7_8, 5) == """@0:
                                                    |--- completed:
                                                    |
@@ -138,8 +138,6 @@ class RecognizerTest extends FunSuite {
                                                    |S   →   E     ●     @0
                                                    |--- predicted:
                                                    |E   →   E     ●     Q     F     @0
-                                                   |Q   →   ●    '+'    @5
-                                                   |Q   →   ●    '-'    @5
                                                    |""".stripMargin)
   }
 

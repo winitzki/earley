@@ -47,10 +47,11 @@ object Recognizer {
   // Return: (completed, predicted).
   def earleyRecognizerStep(
     grammar: SimpleGrammar,
-    currentChar: Char,
+    input: Array[Char],
     currentIndex: Int,
     previousChart: Vector[Set[EarleyItem]],
   ): (Set[EarleyItem], Set[EarleyItem]) = {
+    val currentChar = input(currentIndex)
     // Find items from the previous chart that match the current character.
     // Advance all those items and copy them to the new chart.
     val itemsThatRecognizedThisChar: Set[EarleyItem] =
@@ -73,8 +74,11 @@ object Recognizer {
 
     // We have consumed the character at the current index. Now we will produce items for the next character's index.
 
+    // Do not run the predictor if we are at the end of input.
+    val needToRunPredictor = currentIndex + 1 < input.length
+
     // The second set is always going to be empty here.
-    val (newPredictedItems, _) = transitiveClosure(Set(), Set(), newActiveItems, getNewPredictedItems(grammar, currentIndex))
+    val newPredictedItems = if needToRunPredictor then transitiveClosure(Set(), Set(), newActiveItems, getNewPredictedItems(grammar, currentIndex))._1 else newActiveItems
 
     (newCompletedItems, newPredictedItems)
   }
@@ -94,7 +98,7 @@ object Recognizer {
     val initialChart: Set[EarleyItem] = transitiveClosure(Set(), Set(), fakeInitialItems, getNewPredictedItems(grammar, -1))._1
       .filter(_.initialIndex >= 0)
     input.indices.foldLeft((Vector(Set()), Vector(initialChart))) { case ((prevCompleted, prevPredicted), i) =>
-      val (newCompleted, newPredicted) = earleyRecognizerStep(grammar, currentChar = input(i), currentIndex = i, previousChart = prevPredicted)
+      val (newCompleted, newPredicted) = earleyRecognizerStep(grammar,   input , currentIndex = i, previousChart = prevPredicted)
       (prevCompleted.appended(newCompleted), prevPredicted.appended(newPredicted))
     }
   }
