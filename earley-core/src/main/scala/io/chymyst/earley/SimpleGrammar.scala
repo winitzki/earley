@@ -73,8 +73,10 @@ object SimpleGrammarDef:
   case object Empty extends TerminalNode:
     override def toString: String = "<ε>"
 
-  implicit def lit(c: Char): TerminalNode = LitChar(c)
+  implicit def fromChar(c: Char): TerminalNode = LitChar(c)
 
+  implicit def fromString(s: String): And = And(s.toVector.map(fromChar)) 
+  
   extension (rule: Rule) def toNonTerminalSymbol: NonTerminalSymbol = NonTerminalSymbol(rule.name)
 
   private val terminalNodeToTerminalSymbol: PartialFunction[TerminalNode, TerminalSymbol] = { case l @ LitChar(c) => TerminalSymbol(l.toString, c) }
