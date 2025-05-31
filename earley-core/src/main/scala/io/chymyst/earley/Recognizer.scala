@@ -8,7 +8,6 @@ object Recognizer {
     val padding: Int = math.max(0, providedWidth - contentWidth + 1) / 2
     " " * padding + s + " " * (providedWidth - padding - contentWidth)
 
-
   final case class EarleyItem(rule: RuleWithRHS, dotPosition: Int, initialIndex: Int) {
     def symbolAtDot: AnySymbol = rule.symbolAtIndex(dotPosition)
     def advance: EarleyItem    = this.copy(dotPosition = this.dotPosition + 1)
@@ -50,8 +49,9 @@ object Recognizer {
     input: Array[Char],
     currentIndex: Int,
     previousChart: Vector[Set[EarleyItem]],
+    needToRunPredictor: Boolean,
   ): (Set[EarleyItem], Set[EarleyItem]) = {
-    val currentChar = input(currentIndex)
+    val currentChar                                  = input(currentIndex)
     // Find items from the previous chart that match the current character.
     // Advance all those items and copy them to the new chart.
     val itemsThatRecognizedThisChar: Set[EarleyItem] =
@@ -74,11 +74,9 @@ object Recognizer {
 
     // We have consumed the character at the current index. Now we will produce items for the next character's index.
 
-    // Do not run the predictor if we are at the end of input.
-    val needToRunPredictor = currentIndex + 1 < input.length
-
     // The second set is always going to be empty here.
-    val newPredictedItems = if needToRunPredictor then transitiveClosure(Set(), Set(), newActiveItems, getNewPredictedItems(grammar, currentIndex))._1 else newActiveItems
+    val newPredictedItems =
+      if needToRunPredictor then transitiveClosure(Set(), Set(), newActiveItems, getNewPredictedItems(grammar, currentIndex))._1 else newActiveItems
 
     (newCompletedItems, newPredictedItems)
   }
@@ -86,19 +84,18 @@ object Recognizer {
   // Find all non-terminal symbols at dot; find rules for them; insert new Earley items with those rules, at the next index.
   private def getNewPredictedItems(grammar: SimpleGrammar, currentIndex: Int): Set[EarleyItem] => (Set[EarleyItem], Set[EarleyItem]) = { predicted =>
     val newPredicted = predicted
-      .map(_.symbolAtDot).collect { case symbol: NonTerminalSymbol => grammar.rulesForSymbol(symbol) }.flatten.map(rhs =>
-        EarleyItem(rhs, 0, currentIndex + 1)
-      )
+      .map(_.symbolAtDot).collect { case symbol: NonTerminalSymbol => grammar.rulesForSymbol(symbol) }.flatten.map(rhs => EarleyItem(rhs, 0, currentIndex + 1))
     (newPredicted, Set())
   }
 
   // The result is a tuple (completed, predicted).
-  def earleyRecognizer(grammar: SimpleGrammar, input: Array[Char]): (Vector[Set[EarleyItem]], Vector[Set[EarleyItem]]) = {
-    val fakeInitialItems = Set(EarleyItem(RuleWithRHSAsVector(grammar.startSymbol, Vector(grammar.startSymbol)), 0, -1))
-    val initialChart: Set[EarleyItem] = transitiveClosure(Set(), Set(), fakeInitialItems, getNewPredictedItems(grammar, -1))._1
-      .filter(_.initialIndex >= 0)
+  def earleyRecognizer(grammar: SimpleGrammar, input: Array[Char], runLastPredictor: Boolean): (Vector[Set[EarleyItem]], Vector[Set[EarleyItem]]) = {
+    val fakeInitialItems              = Set(EarleyItem(RuleWithRHSAsVector(grammar.startSymbol, Vector(grammar.startSymbol)), 0, -1))
+    val initialChart: Set[EarleyItem] = transitiveClosure(Set(), Set(), fakeInitialItems, getNewPredictedItems(grammar, -1))._1.filter(_.initialIndex >= 0)
     input.indices.foldLeft((Vector(Set()), Vector(initialChart))) { case ((prevCompleted, prevPredicted), i) =>
-      val (newCompleted, newPredicted) = earleyRecognizerStep(grammar,   input , currentIndex = i, previousChart = prevPredicted)
+      val needToRunPredictor =
+        runLastPredictor || i + 1 < input.length // We may not need to run the predictor if we are at the end of input. Otherwise, we always do.
+      val (newCompleted, newPredicted) = earleyRecognizerStep(grammar, input, currentIndex = i, previousChart = prevPredicted, needToRunPredictor)
       (prevCompleted.appended(newCompleted), prevPredicted.appended(newPredicted))
     }
   }

@@ -16,14 +16,16 @@ def prettyprintChart(chart: (Vector[Set[EarleyItem]], Vector[Set[EarleyItem]])):
         "\n"
     }.mkString("\n")
 
-def testGrammar(fixture: FixtureForSimpleGrammar, prefixLength: Int): String =
-  prettyprintChart(Recognizer.earleyRecognizer(SimpleGrammarDef.toSimpleGrammar(fixture.start_symbol), fixture.example_input.toCharArray.take(prefixLength)))
+def testGrammar(fixture: FixtureForSimpleGrammar, prefixLength: Int, runLastPredictor: Boolean): String =
+  prettyprintChart(
+    Recognizer.earleyRecognizer(SimpleGrammarDef.toSimpleGrammar(fixture.start_symbol), fixture.example_input.toCharArray.take(prefixLength), runLastPredictor)
+  )
 
 class RecognizerTest extends FunSuite {
 
   test("recognize the sample from Grune-Jacobs Figure 7.4") {
 
-    expect(testGrammar(grammar_figure_7_4, 5) == """@0:
+    expect(testGrammar(grammar_figure_7_4, 5, false) == """@0:
                                                    |--- completed:
                                                    |
                                                    |--- predicted:
@@ -88,7 +90,7 @@ class RecognizerTest extends FunSuite {
   }
 
   test("reproduce the chart from Grune-Jacobs Figure 7.11") {
-    expect(testGrammar(grammar_figure_7_8, 5) == """@0:
+    expect(testGrammar(grammar_figure_7_8, 5, false) == """@0:
                                                    |--- completed:
                                                    |
                                                    |--- predicted:

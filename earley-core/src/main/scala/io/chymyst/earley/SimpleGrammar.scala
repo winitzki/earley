@@ -31,7 +31,7 @@ trait RuleWithRHS:
 
 final case class RuleWithRHSAsVector(baseSymbol: NonTerminalSymbol, rhs: Vector[AnySymbol]) extends RuleWithRHS:
   def size: Int                            = rhs.length
-  def symbolAtIndex(index: Int): AnySymbol = rhs(index) //rhs.lift(index).getOrElse(StartOfText) TODO remove this
+  def symbolAtIndex(index: Int): AnySymbol = rhs(index) // rhs.lift(index).getOrElse(StartOfText) TODO remove this
 
   override def toString: String = s"$baseSymbol ::== ${rhs.mkString(" ")}"
 
