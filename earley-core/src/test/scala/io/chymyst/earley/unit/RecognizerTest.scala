@@ -143,4 +143,7 @@ class RecognizerTest extends FunSuite {
                                                    |""".stripMargin)
   }
 
+  test("reproduce parse chart for grammar in Figure 7.17") {
+    expect(testGrammar(grammar_figure_7_17, 4, true) == """""")
+  }
 }

@@ -2,11 +2,9 @@ package io.chymyst.earley
 
 import io.chymyst.earley.typeclasses.Monoid
 import io.chymyst.earley.typeclasses.Monoid.MonoidSyntax
-import sourcecode.Name
 
 import scala.collection.immutable.HashMap
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 
 // Interface to a grammar object.
 // This is a low-level representation used by the parser.
@@ -20,7 +18,7 @@ trait SimpleGrammar:
 
   override def toString: String =
     (Vector(startSymbol) ++ (nonTerminalSymbols - startSymbol).toVector.sortBy(_.name))
-      .flatMap(symbol => rulesForSymbol(symbol).toVector.sortBy(_.toString)).mkString("\n")
+      .flatMap(symbol => rulesForSymbol(symbol).toVector.sortBy(_.toString)).mkString("", "\n", "\n")
 
 // Interface to a right-hand-side of a grammar production rule.
 
@@ -31,11 +29,9 @@ trait RuleWithRHS:
 
 final case class RuleWithRHSAsVector(baseSymbol: NonTerminalSymbol, rhs: Vector[AnySymbol]) extends RuleWithRHS:
   def size: Int                            = rhs.length
-  def symbolAtIndex(index: Int): AnySymbol = rhs(index) // rhs.lift(index).getOrElse(StartOfText) TODO remove this
+  def symbolAtIndex(index: Int): AnySymbol = rhs(index) // rhs.lift(index).getOrElse(StartOfText) TODO: Support empty productions in grammar.
 
-  override def toString: String = s"$baseSymbol ::== ${rhs.mkString(" ")}"
-
-  // override def toString: String = s"${baseRule.name}" // Is this necessary?
+  override def toString: String = s"$baseSymbol ::== ${if rhs.isEmpty then "ε" else rhs.mkString(" ")}"
 
 trait AnySymbol:
   def name: String
@@ -57,6 +53,7 @@ final case class NonTerminalSymbol(name: String) extends AnySymbol:
 // SimpleGrammarDef supports only the simplest normal form for the Earley parser.
 // Each grammar production rule must have the form `A ::== B C D ... E`. Here `A` is a non-terminal and
 // each of B, C, D, ..., E must be either a single literal character or another non-terminal.
+// Empty productions are permitted. They are used to model ε rules.
 
 object SimpleGrammarDef:
 
@@ -73,6 +70,9 @@ object SimpleGrammarDef:
   final case class LitChar(c: Char) extends TerminalNode:
     override def toString: String = s"'$c'"
 
+  case object Empty extends TerminalNode:
+    override def toString: String = "<ε>"
+
   implicit def lit(c: Char): TerminalNode = LitChar(c)
 
   extension (rule: Rule) def toNonTerminalSymbol: NonTerminalSymbol = NonTerminalSymbol(rule.name)
@@ -83,11 +83,15 @@ object SimpleGrammarDef:
     case rule: Rule         => Set(Vector(rule.toNonTerminalSymbol))
     case node: TerminalNode => Set(Vector(node).collect(terminalNodeToTerminalSymbol))
     case And(symbols)       =>
-      symbols.map(flattenOpNode).reduce { case (a, b) =>
-        for {
-          x <- a
-          y <- b
-        } yield x ++ y
+      symbols.map(flattenOpNode).reduce {
+        case (a, Empty) => a
+        case (Empty, b) => b
+
+        case (a, b) =>
+          for {
+            x <- a
+            y <- b
+          } yield x ++ y
       }
     case Or(symbols)        => symbols.map(flattenOpNode).reduce(_ ++ _)
   }
